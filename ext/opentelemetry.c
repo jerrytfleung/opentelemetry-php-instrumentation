@@ -13,6 +13,11 @@
 #include "zend_attributes.h"
 #include "zend_closures.h"
 
+static void (*original_zend_execute_ex) (zend_execute_data *execute_data);
+static void (*original_zend_execute_internal) (zend_execute_data *execute_data, zval *return_value);
+void opentelemetry_execute_ex (zend_execute_data *execute_data);
+void opentelemetry_execute_internal(zend_execute_data *execute_data, zval *return_value);
+
 static int check_conflict(HashTable *registry, const char *extension_name) {
     if (!extension_name || !*extension_name) {
         return 0;
@@ -73,6 +78,15 @@ static void check_conflicts() {
     OTEL_G(disabled) = conflict_found;
 }
 
+void opentelemetry_execute_ex (zend_execute_data *execute_data) {
+    execute_ex(execute_data);
+}
+
+void opentelemetry_execute_internal(zend_execute_data *execute_data, zval *return_value) {
+    execute_internal(execute_data, return_value);
+}
+
+
 ZEND_DECLARE_MODULE_GLOBALS(opentelemetry)
 
 PHP_INI_BEGIN()
@@ -94,6 +108,10 @@ STD_PHP_INI_ENTRY_EX("opentelemetry.attr_hooks_enabled", "Off", PHP_INI_ALL,
 STD_PHP_INI_ENTRY_EX("opentelemetry.display_warnings", "Off", PHP_INI_ALL,
                      OnUpdateBool, display_warnings, zend_opentelemetry_globals,
                      opentelemetry_globals, zend_ini_boolean_displayer_cb)
+STD_PHP_INI_ENTRY_EX("opentelemetry.function_level_profiling", "Off", PHP_INI_ALL,
+                     OnUpdateBool, function_level_profiling,
+                     zend_opentelemetry_globals, opentelemetry_globals,
+                     zend_ini_boolean_displayer_cb)
 STD_PHP_INI_ENTRY("opentelemetry.attr_pre_handler_function",
                   "OpenTelemetry\\API\\Instrumentation\\WithSpanHandler::pre",
                   PHP_INI_ALL, OnUpdateString, pre_handler_function_fqn,
@@ -119,6 +137,33 @@ PHP_FUNCTION(OpenTelemetry_Instrumentation_hook) {
     ZEND_PARSE_PARAMETERS_END();
 
     RETURN_BOOL(add_observer(class_name, function_name, pre, post));
+}
+
+PHP_FUNCTION(OpenTelemetry_Instrumentation_hook_execute_ex) {
+    zval *pre = NULL;
+    zval *post = NULL;
+
+    ZEND_PARSE_PARAMETERS_START(0, 2)
+        Z_PARAM_OPTIONAL
+        Z_PARAM_OBJECT_OF_CLASS_OR_NULL(pre, zend_ce_closure)
+        Z_PARAM_OBJECT_OF_CLASS_OR_NULL(post, zend_ce_closure)
+    ZEND_PARSE_PARAMETERS_END();
+
+    RETURN_BOOL(true);
+}
+
+PHP_FUNCTION(OpenTelemetry_Instrumentation_hook_execute_internal) {
+    zval *pre = NULL;
+    zval *post = NULL;
+
+    ZEND_PARSE_PARAMETERS_START(0, 2)
+        Z_PARAM_OPTIONAL
+        Z_PARAM_OBJECT_OF_CLASS_OR_NULL(pre, zend_ce_closure)
+        Z_PARAM_OBJECT_OF_CLASS_OR_NULL(post, zend_ce_closure)
+    ZEND_PARSE_PARAMETERS_END();
+
+    // add_function_observer(OTEL_G(observer_function_lookup), fn, pre_hook, post_hook);
+    RETURN_BOOL(true);
 }
 
 PHP_RINIT_FUNCTION(opentelemetry) {
@@ -147,6 +192,13 @@ PHP_MINIT_FUNCTION(opentelemetry) {
     check_conflicts();
 
     if (!OTEL_G(disabled)) {
+        if (OTEL_G(function_level_profiling)) {
+            original_zend_execute_internal = zend_execute_internal;
+            zend_execute_internal = opentelemetry_execute_internal;
+            original_zend_execute_ex = zend_execute_ex;
+            zend_execute_ex = opentelemetry_execute_ex;
+        }
+
         opentelemetry_observer_init(INIT_FUNC_ARGS_PASSTHRU);
     }
 
@@ -154,6 +206,13 @@ PHP_MINIT_FUNCTION(opentelemetry) {
 }
 
 PHP_MSHUTDOWN_FUNCTION(opentelemetry) {
+    if (!OTEL_G(disabled)) {
+        if (OTEL_G(function_level_profiling)) {
+            zend_execute_ex = original_zend_execute_ex;
+            zend_execute_internal = original_zend_execute_internal;
+        }
+    }
+
     UNREGISTER_INI_ENTRIES();
 
     return SUCCESS;
