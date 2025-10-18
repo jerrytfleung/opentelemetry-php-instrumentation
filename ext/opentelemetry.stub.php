@@ -31,7 +31,7 @@ function hook(
  *
  * @see https://github.com/open-telemetry/opentelemetry-php-instrumentation
  */
-function hook_execute_ex(
+function hook_zend_execute_ex(
     ?\Closure $pre = null,
     ?\Closure $post = null,
 ): bool {}
@@ -45,7 +45,7 @@ function hook_execute_ex(
  *
  * @see https://github.com/open-telemetry/opentelemetry-php-instrumentation
  */
-function hook_execute_internal(
+function hook_zend_execute_internal(
     ?\Closure $pre = null,
     ?\Closure $post = null,
 ): bool {}

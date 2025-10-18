@@ -7,6 +7,7 @@
 #include "ext/standard/info.h"
 #include "php_opentelemetry.h"
 #include "opentelemetry_arginfo.h"
+#include "function_level_profiler.h"
 #include "otel_observer.h"
 #include "stdlib.h"
 #include "string.h"
@@ -139,7 +140,7 @@ PHP_FUNCTION(OpenTelemetry_Instrumentation_hook) {
     RETURN_BOOL(add_observer(class_name, function_name, pre, post));
 }
 
-PHP_FUNCTION(OpenTelemetry_Instrumentation_hook_execute_ex) {
+PHP_FUNCTION(OpenTelemetry_Instrumentation_hook_zend_execute_ex) {
     zval *pre = NULL;
     zval *post = NULL;
 
@@ -149,10 +150,10 @@ PHP_FUNCTION(OpenTelemetry_Instrumentation_hook_execute_ex) {
         Z_PARAM_OBJECT_OF_CLASS_OR_NULL(post, zend_ce_closure)
     ZEND_PARSE_PARAMETERS_END();
 
-    RETURN_BOOL(true);
+    RETURN_BOOL(add_function_level_profiler("zend_execute_ex", pre, post));
 }
 
-PHP_FUNCTION(OpenTelemetry_Instrumentation_hook_execute_internal) {
+PHP_FUNCTION(OpenTelemetry_Instrumentation_hook_zend_execute_internal) {
     zval *pre = NULL;
     zval *post = NULL;
 
@@ -162,15 +163,14 @@ PHP_FUNCTION(OpenTelemetry_Instrumentation_hook_execute_internal) {
         Z_PARAM_OBJECT_OF_CLASS_OR_NULL(post, zend_ce_closure)
     ZEND_PARSE_PARAMETERS_END();
 
-    // add_function_observer(OTEL_G(observer_function_lookup), fn, pre_hook, post_hook);
-    RETURN_BOOL(true);
+    RETURN_BOOL(add_function_level_profiler("zend_execute_internal", pre, post));
 }
 
 PHP_RINIT_FUNCTION(opentelemetry) {
 #if defined(ZTS) && defined(COMPILE_DL_OPENTELEMETRY)
     ZEND_TSRMLS_CACHE_UPDATE();
 #endif
-
+    function_level_profiler_globals_init();
     observer_globals_init();
 
     return SUCCESS;
@@ -178,6 +178,7 @@ PHP_RINIT_FUNCTION(opentelemetry) {
 
 PHP_RSHUTDOWN_FUNCTION(opentelemetry) {
     observer_globals_cleanup();
+    function_level_profiler_globals_cleanup();
 
     return SUCCESS;
 }

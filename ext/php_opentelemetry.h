@@ -9,6 +9,7 @@ ZEND_BEGIN_MODULE_GLOBALS(opentelemetry)
     HashTable *observer_class_lookup;
     HashTable *observer_function_lookup;
     HashTable *observer_aggregates;
+    HashTable *function_level_profiler_lookup;
     int validate_hook_functions;
     char *conflicts;
     int disabled; // module disabled? (eg due to conflicting extension loaded)

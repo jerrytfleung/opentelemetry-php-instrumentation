@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 4091c3f4f975ac38bc497ad932030908b432a90d */
+ * Stub hash: 3da98e5ac571200dc8c6d6f8f0ac9b74dcd3b4e5 */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_OpenTelemetry_Instrumentation_hook, 0, 2, _IS_BOOL, 0)
 	ZEND_ARG_TYPE_INFO(0, class, IS_STRING, 1)
@@ -8,22 +8,22 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_OpenTelemetry_Instrumentation_ho
 	ZEND_ARG_OBJ_INFO_WITH_DEFAULT_VALUE(0, post, Closure, 1, "null")
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_OpenTelemetry_Instrumentation_hook_execute_ex, 0, 0, _IS_BOOL, 0)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_OpenTelemetry_Instrumentation_hook_zend_execute_ex, 0, 0, _IS_BOOL, 0)
 	ZEND_ARG_OBJ_INFO_WITH_DEFAULT_VALUE(0, pre, Closure, 1, "null")
 	ZEND_ARG_OBJ_INFO_WITH_DEFAULT_VALUE(0, post, Closure, 1, "null")
 ZEND_END_ARG_INFO()
 
-#define arginfo_OpenTelemetry_Instrumentation_hook_execute_internal arginfo_OpenTelemetry_Instrumentation_hook_execute_ex
+#define arginfo_OpenTelemetry_Instrumentation_hook_zend_execute_internal arginfo_OpenTelemetry_Instrumentation_hook_zend_execute_ex
 
 
 ZEND_FUNCTION(OpenTelemetry_Instrumentation_hook);
-ZEND_FUNCTION(OpenTelemetry_Instrumentation_hook_execute_ex);
-ZEND_FUNCTION(OpenTelemetry_Instrumentation_hook_execute_internal);
+ZEND_FUNCTION(OpenTelemetry_Instrumentation_hook_zend_execute_ex);
+ZEND_FUNCTION(OpenTelemetry_Instrumentation_hook_zend_execute_internal);
 
 
 static const zend_function_entry ext_functions[] = {
 	ZEND_NS_FALIAS("OpenTelemetry\\Instrumentation", hook, OpenTelemetry_Instrumentation_hook, arginfo_OpenTelemetry_Instrumentation_hook)
-	ZEND_NS_FALIAS("OpenTelemetry\\Instrumentation", hook_execute_ex, OpenTelemetry_Instrumentation_hook_execute_ex, arginfo_OpenTelemetry_Instrumentation_hook_execute_ex)
-	ZEND_NS_FALIAS("OpenTelemetry\\Instrumentation", hook_execute_internal, OpenTelemetry_Instrumentation_hook_execute_internal, arginfo_OpenTelemetry_Instrumentation_hook_execute_internal)
+	ZEND_NS_FALIAS("OpenTelemetry\\Instrumentation", hook_zend_execute_ex, OpenTelemetry_Instrumentation_hook_zend_execute_ex, arginfo_OpenTelemetry_Instrumentation_hook_zend_execute_ex)
+	ZEND_NS_FALIAS("OpenTelemetry\\Instrumentation", hook_zend_execute_internal, OpenTelemetry_Instrumentation_hook_zend_execute_internal, arginfo_OpenTelemetry_Instrumentation_hook_zend_execute_internal)
 	ZEND_FE_END
 };
