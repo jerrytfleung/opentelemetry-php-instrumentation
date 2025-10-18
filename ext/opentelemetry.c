@@ -80,11 +80,15 @@ static void check_conflicts() {
 }
 
 void opentelemetry_execute_ex (zend_execute_data *execute_data) {
+    function_level_profiler_begin(execute_data);
     execute_ex(execute_data);
+    function_level_profiler_end(execute_data);
 }
 
 void opentelemetry_execute_internal(zend_execute_data *execute_data, zval *return_value) {
+    function_level_profiler_begin(execute_data);
     execute_internal(execute_data, return_value);
+    function_level_profiler_end(execute_data);
 }
 
 

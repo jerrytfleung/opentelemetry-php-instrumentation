@@ -12,6 +12,30 @@ typedef struct function_level_profiler {
     zval* post_hooks;
 } function_level_profiler;
 
+void function_level_profiler_begin(zend_execute_data *execute_data) {
+/*
+    otel_observer *observer = ZEND_OP_ARRAY_EXTENSION(
+        &execute_data->func->op_array, op_array_extension);
+    if (!observer || !zend_llist_count(&observer->pre_hooks)) {
+        return;
+    }
+
+    observer_begin(execute_data, &observer->pre_hooks);
+*/
+}
+
+void function_level_profiler_end(zend_execute_data *execute_data) {
+/*
+    otel_observer *observer = ZEND_OP_ARRAY_EXTENSION(
+        &execute_data->func->op_array, op_array_extension);
+    if (!observer || !zend_llist_count(&observer->post_hooks)) {
+        return;
+    }
+
+    observer_end(execute_data, retval, &observer->post_hooks);
+*/
+}
+
 static void free_function_level_profiler(function_level_profiler *profiler) {
     efree(profiler);
 }
