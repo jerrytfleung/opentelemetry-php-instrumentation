@@ -79,16 +79,20 @@ static void check_conflicts() {
     OTEL_G(disabled) = conflict_found;
 }
 
-void opentelemetry_execute_ex (zend_execute_data *execute_data) {
-    function_level_profiler_begin("zend_execute_ex", execute_data);
+void opentelemetry_execute_ex(zend_execute_data *execute_data) {
+    bool begun = function_level_profiler_begin("zend_execute_ex", execute_data);
     execute_ex(execute_data);
-    function_level_profiler_end("zend_execute_ex", execute_data, NULL);
+    if (begun) {
+        function_level_profiler_end("zend_execute_ex", execute_data, NULL);
+    }
 }
 
 void opentelemetry_execute_internal(zend_execute_data *execute_data, zval *return_value) {
-    function_level_profiler_begin("zend_execute_internal", execute_data);
+    bool begun = function_level_profiler_begin("zend_execute_internal", execute_data);
     execute_internal(execute_data, return_value);
-    function_level_profiler_end("zend_execute_internal", execute_data, return_value);
+    if (begun) {
+        function_level_profiler_end("zend_execute_internal", execute_data, return_value);
+    }
 }
 
 

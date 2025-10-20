@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 3da98e5ac571200dc8c6d6f8f0ac9b74dcd3b4e5 */
+ * Stub hash: ef45552918fa30eb75c90a82b8062b091e0ba946 */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_OpenTelemetry_Instrumentation_hook, 0, 2, _IS_BOOL, 0)
 	ZEND_ARG_TYPE_INFO(0, class, IS_STRING, 1)

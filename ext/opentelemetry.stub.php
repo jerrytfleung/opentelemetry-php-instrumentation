@@ -23,7 +23,7 @@ function hook(
 ): bool {}
 
 /**
- * @param \Closure|null $pre function($class, array $params, ?string $class, ?string $function, ?string $filename, ?int $lineno, ?string $scope, ?array $sample_args, ?array $sample_attributes): $params
+ * @param \Closure|null $pre function($class, array $params, ?string $class, ?string $function, ?string $filename, ?int $lineno, ?array $sample_args, ?array $sample_attributes): $params
  *        You may optionally return modified parameters.
  * @param \Closure|null $post function($class, array $params, $returnValue, ?Throwable $exception): $returnValue
  *        You may optionally return modified return value.
