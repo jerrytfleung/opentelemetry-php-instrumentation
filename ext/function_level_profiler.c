@@ -704,55 +704,41 @@ static void profiler_end(zend_execute_data *execute_data, zval *retval,
 
     for (zend_llist_element *element = hooks->tail; element;
              element = element->prev) {
-    zend_fcall_info fci = empty_fcall_info;
-    zend_fcall_info_cache fcc = empty_fcall_info_cache;
-    if (UNEXPECTED(zend_fcall_info_init((zval *)element->data, 0, &fci,
-                                        &fcc, NULL, NULL) != SUCCESS)) {
-        php_error_docref(NULL, E_WARNING, "Failed to initialize post hook callable");
-        continue;
-    }
-
-    zval ret = {.u1.type_info = IS_UNDEF};
-    fci.param_count = param_count;
-    fci.params = params;
-    fci.named_params = NULL;
-    fci.retval = &ret;
-
-    if (!is_valid_signature(fci, fcc)) {
-        php_error_docref(NULL, E_CORE_WARNING,
-                         "OpenTelemetry: post hook invalid signature, "
-                         "class=%s function=%s",
-                         (Z_TYPE_P(&params[4]) == IS_NULL)
-                             ? "null"
-                             : Z_STRVAL_P(&params[4]),
-                         Z_STRVAL_P(&params[5]));
-        continue;
-    }
-    otel_exception_state save_state;
-    exception_isolation_start(&save_state);
-
-    if (zend_call_function(&fci, &fcc) == SUCCESS) {
-        if (!Z_ISUNDEF(ret) &&
-            (fcc.function_handler->op_array.fn_flags &
-             ZEND_ACC_HAS_RETURN_TYPE) &&
-            !(ZEND_TYPE_PURE_MASK(
-                  fcc.function_handler->common.arg_info[-1].type) &
-              MAY_BE_VOID)) {
-            if (execute_data->return_value) {
-                zval_ptr_dtor(execute_data->return_value);
-                ZVAL_COPY(execute_data->return_value, &ret);
-                zval_ptr_dtor(&params[2]);
-                ZVAL_COPY_VALUE(&params[2], &ret);
-                ZVAL_UNDEF(&ret);
-            }
+        zend_fcall_info fci = empty_fcall_info;
+        zend_fcall_info_cache fcc = empty_fcall_info_cache;
+        if (UNEXPECTED(zend_fcall_info_init((zval *)element->data, 0, &fci,
+                                            &fcc, NULL, NULL) != SUCCESS)) {
+            php_error_docref(NULL, E_WARNING, "Failed to initialize post hook callable");
+            continue;
         }
-    }
 
-    zend_object *suppressed = exception_isolation_end(&save_state);
-    exception_isolation_handle_exception(suppressed, &params[4], &params[5],
-                                         "post hook");
+        zval ret = {.u1.type_info = IS_UNDEF};
+        fci.param_count = param_count;
+        fci.params = params;
+        fci.named_params = NULL;
+        fci.retval = &ret;
 
-    zval_dtor(&ret);
+        if (!is_valid_signature(fci, fcc)) {
+            php_error_docref(NULL, E_CORE_WARNING,
+                             "OpenTelemetry: post hook invalid signature, "
+                             "class=%s function=%s",
+                             (Z_TYPE_P(&params[4]) == IS_NULL)
+                                 ? "null"
+                                 : Z_STRVAL_P(&params[4]),
+                             Z_STRVAL_P(&params[5]));
+            continue;
+        }
+        otel_exception_state save_state;
+        exception_isolation_start(&save_state);
+
+        if (zend_call_function(&fci, &fcc) == SUCCESS) {
+        }
+
+        zend_object *suppressed = exception_isolation_end(&save_state);
+        exception_isolation_handle_exception(suppressed, &params[4], &params[5],
+                                             "post hook");
+
+        zval_dtor(&ret);
     }
 
     for (size_t i = 0; i < param_count; i++) {
