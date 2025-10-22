@@ -804,11 +804,6 @@ static void observer_end(zend_execute_data *execute_data, zval *retval,
     func_get_exception(&params[3]);
     func_get_declaring_scope(&params[4], execute_data);
     func_get_function_name(&params[5], execute_data);
-    // Assume 'var' points to a zval of type IS_STRING
-    char *cstr = Z_STRVAL_P(&params[5]);
-    // int cstrlen = Z_STRLEN_P(&params[5]);
-    php_error_docref(NULL, E_WARNING, "Function %s() called", cstr);
-
     func_get_filename(&params[6], execute_data);
     func_get_lineno(&params[7], execute_data);
 
