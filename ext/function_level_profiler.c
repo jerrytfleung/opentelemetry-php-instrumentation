@@ -10,11 +10,11 @@
 const char *withspan_fqn_lcp = "opentelemetry\\api\\instrumentation\\withspan";
 const char *spanattribute_fqn_lcp =
     "opentelemetry\\api\\instrumentation\\spanattribute";
-static char *with_span_attribute_args_keys[] = {"name", "span_kind"};
+// static char *with_span_attribute_args_keys[] = {"name", "span_kind"};
 
 typedef struct function_level_profiler {
-    zval* pre_hook;
-    zval* post_hook;
+    zend_llist pre_hooks;
+    zend_llist post_hooks;
 } function_level_profiler;
 
 typedef struct otel_exception_state {
@@ -42,7 +42,51 @@ typedef struct otel_arg_locator {
     uint32_t extended_used;
     zval extended_slots[STACK_EXTENSION_LIMIT];
 } otel_arg_locator;
-/*
+
+bool is_object_compatible_with_type_hint_b(zval *object_zval,
+                                         zend_class_entry *type_hint) {
+    zend_class_entry *object_ce = Z_OBJCE_P(object_zval);
+    return instanceof_function(object_ce, type_hint);
+}
+
+static inline bool is_valid_signature(zend_fcall_info fci,
+                                      zend_fcall_info_cache fcc) {
+    if (OTEL_G(validate_hook_functions) == 0) {
+        return 1;
+    }
+    zend_function *func = fcc.function_handler;
+    zend_arg_info *arg_info;
+    zend_type *arg_type;
+    uint32_t type;
+    uint32_t type_mask;
+
+    for (uint32_t i = 0; i < func->common.num_args; i++) {
+        // get type mask of callback argument
+        arg_info = &func->common.arg_info[i];
+        arg_type = &arg_info->type;
+        type_mask = arg_type->type_mask;
+
+        // get actual value + type
+        zval param = fci.params[i];
+        type = Z_TYPE(fci.params[i]);
+
+        if (type_mask == IS_UNDEF) {
+            // no type mask -> ok
+        } else if (Z_TYPE(param) == IS_OBJECT) {
+            // object special-case handling (check for interfaces, subclasses)
+            zend_class_entry *ce = Z_OBJCE(param);
+            if (!is_object_compatible_with_type_hint_b(&param, ce)) {
+                return false;
+            }
+        } else if ((type_mask & (1 << type)) == 0) {
+            // type is not compatible with mask
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static void exception_isolation_start(otel_exception_state *save_state) {
     save_state->exception = EG(exception);
     save_state->prev_exception = EG(prev_exception);
@@ -65,8 +109,7 @@ static void exception_isolation_start(otel_exception_state *save_state) {
         save_state->opline = NULL;
     }
 }
-*/
-/*
+
 static zend_object *exception_isolation_end(otel_exception_state *save_state) {
     zend_object *suppressed = EG(exception);
     if (UNEXPECTED(suppressed && zend_is_unwind_exit(suppressed))) {
@@ -96,7 +139,7 @@ static zend_object *exception_isolation_end(otel_exception_state *save_state) {
 
     return suppressed;
 }
-*/
+
 /*
 static void arg_locator_initialize(otel_arg_locator *arg_locator,
                                    zend_execute_data *execute_data) {
@@ -162,14 +205,12 @@ static uint32_t func_get_arg_index_by_name(zend_execute_data *execute_data,
     return (uint32_t)-1;
 }
 */
-/*
 static const char *zval_get_chars(zval *zv) {
     if (zv != NULL && Z_TYPE_P(zv) == IS_STRING) {
         return Z_STRVAL_P(zv);
     }
     return "null";
 }
-*/
 /*
 static zval *arg_locator_get_slot(otel_arg_locator *arg_locator, uint32_t index,
                                   const char **failure_reason) {
@@ -242,7 +283,6 @@ static void arg_locator_store_extended(otel_arg_locator *arg_locator) {
     }
 }
 */
-/*
 static void exception_isolation_handle_exception(zend_object *suppressed,
                                                  zval *class_name,
                                                  zval *function_name,
@@ -269,7 +309,6 @@ static void exception_isolation_handle_exception(zend_object *suppressed,
 
     OBJ_RELEASE(suppressed);
 }
-*/
 
 static inline void
 func_get_this_or_called_scope(zval *zv, zend_execute_data *execute_data) {
@@ -291,6 +330,10 @@ static inline void func_get_function_name(zval *zv, zend_execute_data *ex) {
     ZVAL_STR_COPY(zv, ex->func->op_array.function_name);
 }
 
+static inline void func_get_function_type(zval *zv, zend_execute_data *ex) {
+    ZVAL_LONG(zv, ex->func->type);
+}
+
 static zend_function *find_function(zend_class_entry *ce, zend_string *name) {
     zend_function *func;
     ZEND_HASH_FOREACH_PTR(&ce->function_table, func) {
@@ -304,7 +347,6 @@ static zend_function *find_function(zend_class_entry *ce, zend_string *name) {
 
 // find SpanAttribute attribute on a parameter, or on a parameter of
 // an interface
-/*
 static zend_attribute *find_spanattribute_attribute(zend_function *func,
                                                     uint32_t i) {
     zend_attribute *attr = zend_get_parameter_attribute_str(
@@ -338,7 +380,7 @@ static zend_attribute *find_spanattribute_attribute(zend_function *func,
 
     return NULL;
 }
-*/
+/*
 // find WithSpan in attributes, or in interface method attributes
 static zend_attribute *find_withspan_attribute(zend_function *func) {
     zend_attribute *attr;
@@ -371,6 +413,7 @@ static zend_attribute *find_withspan_attribute(zend_function *func) {
     }
     return NULL;
 }
+*/
 /*
 static bool func_has_withspan_attribute(zend_execute_data *ex) {
     zend_attribute *attr = find_withspan_attribute(ex->func);
@@ -382,7 +425,6 @@ static bool func_has_withspan_attribute(zend_execute_data *ex) {
 /*
  * OpenTelemetry attribute values may only be of limited types
  */
-/*
 static bool is_valid_attribute_value(zval *val) {
     switch (Z_TYPE_P(val)) {
     case IS_STRING:
@@ -396,8 +438,7 @@ static bool is_valid_attribute_value(zval *val) {
         return false;
     }
 }
-*/
-/*
+
 // get function args. any args with the
 // SpanAttributes attribute are added to the attributes HashTable
 static void func_get_args(zval *zv, HashTable *attributes,
@@ -476,7 +517,7 @@ static void func_get_args(zval *zv, HashTable *attributes,
         ZVAL_EMPTY_ARRAY(zv);
     }
 }
-*/
+
 static inline void func_get_retval(zval *zv, zval *retval) {
     if (UNEXPECTED(!retval || Z_ISUNDEF_P(retval))) {
         ZVAL_NULL(zv);
@@ -484,7 +525,7 @@ static inline void func_get_retval(zval *zv, zval *retval) {
         ZVAL_COPY(zv, retval);
     }
 }
-
+/*
 static inline void func_get_attribute_args(zval *zv, HashTable *attributes,
                                            zend_execute_data *ex) {
     if (!OTEL_G(attr_hooks_enabled)) {
@@ -528,6 +569,7 @@ static inline void func_get_attribute_args(zval *zv, HashTable *attributes,
 
     ZVAL_ARR(zv, ht);
 }
+*/
 
 static inline void func_get_declaring_scope(zval *zv, zend_execute_data *ex) {
     if (ex->func->op_array.scope) {
@@ -553,164 +595,70 @@ static inline void func_get_lineno(zval *zv, zend_execute_data *ex) {
     }
 }
 
+static inline void func_get_exception(zval *zv) {
+    zend_object *exception = EG(exception);
+    if (exception && zend_is_unwind_exit(exception)) {
+        ZVAL_NULL(zv);
+    } else if (UNEXPECTED(exception)) {
+        ZVAL_OBJ_COPY(zv, exception);
+    } else {
+        ZVAL_NULL(zv);
+    }
+}
 
-static void profiler_begin(zend_execute_data *execute_data, zval *hook) {
-	php_error_docref(NULL, E_WARNING, "profiler_begin is called");
-    if (!hook) {
-		php_error_docref(NULL, E_WARNING, "hook is null");
+static void profiler_begin(zend_execute_data *execute_data, zend_llist * hooks) {
+    if (!zend_llist_count(hooks)) {
         return;
     }
-	php_error_docref(NULL, E_WARNING, "profiler_begin...");
-/*
-    zval params[8];
-    uint32_t param_count = 8;
-    HashTable *attributes;
-    ALLOC_HASHTABLE(attributes);
-    zend_hash_init(attributes, 0, NULL, ZVAL_PTR_DTOR, 0);
-    bool check_for_attributes = OTEL_G(attr_hooks_enabled) && func_has_withspan_attribute(execute_data);
 
+    zval params[7];
+    uint32_t param_count = 7;
     func_get_this_or_called_scope(&params[0], execute_data);
-    func_get_attribute_args(&params[6], attributes, execute_data);
-    func_get_args(&params[1], attributes, execute_data, check_for_attributes);
+    func_get_args(&params[1], NULL, execute_data, false);
     func_get_declaring_scope(&params[2], execute_data);
     func_get_function_name(&params[3], execute_data);
     func_get_filename(&params[4], execute_data);
     func_get_lineno(&params[5], execute_data);
+    func_get_function_type(&params[6], execute_data);
 
-    ZVAL_ARR(&params[7], attributes);
-
-	zend_fcall_info fci = empty_fcall_info;
-    zend_fcall_info_cache fcc = empty_fcall_info_cache;
-    if (UNEXPECTED(zend_fcall_info_init(hook, 0, &fci, &fcc, NULL, NULL) != SUCCESS)) {
-		php_error_docref(NULL, E_WARNING, "Failed to initialize pre hook callable");
-		return;
-	}
-
-	zval ret = {.u1.type_info = IS_UNDEF};
-	fci.param_count = param_count;
-	fci.params = params;
-	fci.named_params = NULL;
-	fci.retval = &ret;
-
-    if (!is_valid_signature(fci, fcc)) {
-        php_error_docref(NULL, E_CORE_WARNING,
-                         "OpenTelemetry: pre hook invalid signature,"
-                         " class=%s function=%s",
-                         (Z_TYPE_P(&params[2]) == IS_NULL)
-                             ? "null"
-                             : Z_STRVAL_P(&params[2]),
-                         Z_STRVAL_P(&params[3]));
-        return;
-    }
-
-    otel_exception_state save_state;
-    exception_isolation_start(&save_state);
-
-    if (zend_call_function(&fci, &fcc) == SUCCESS) {
-        if (Z_TYPE(ret) == IS_ARRAY &&
-            !zend_is_identical(&ret, &params[1])) {
-            zend_ulong idx;
-            zend_string *str_idx;
-            zval *val;
-            bool invalid_arg_warned = false;
-
-            otel_arg_locator arg_locator;
-            arg_locator_initialize(&arg_locator, execute_data);
-            uint32_t args_initialized = arg_locator.provided;
-
-            ZEND_HASH_FOREACH_KEY_VAL(Z_ARR(ret), idx, str_idx, val) {
-                const char *failure_reason = "";
-
-                if (str_idx != NULL) {
-                    idx = func_get_arg_index_by_name(execute_data, str_idx);
-
-                    if (idx == (uint32_t)-1) {
-                        php_error_docref(
-                            NULL, E_CORE_WARNING,
-                            "OpenTelemetry: pre hook unknown "
-                            "named arg %s, class=%s function=%s",
-                            ZSTR_VAL(str_idx), zval_get_chars(&params[2]),
-                            zval_get_chars(&params[3]));
-                        return;
-                    }
-                }
-
-                zval *target = arg_locator_get_slot(&arg_locator, idx,
-                                                    &failure_reason);
-
-                if (target == NULL) {
-                    if (invalid_arg_warned) {
-                        return;
-                    }
-
-                    php_error_docref(NULL, E_CORE_WARNING,
-                                     "OpenTelemetry: pre hook invalid "
-                                     "argument index " ZEND_ULONG_FMT
-                                     " - %s, class=%s function=%s",
-                                     idx, failure_reason,
-                                     zval_get_chars(&params[2]),
-                                     zval_get_chars(&params[3]));
-                    invalid_arg_warned = true;
-                    return;
-                }
-
-                if (idx >= args_initialized) {
-                    // This slot was not initialized, need to initialize
-                    // all slots between current and the last initialized
-                    // one
-                    for (uint32_t i = args_initialized; i < idx; i++) {
-                        ZVAL_UNDEF(
-                            arg_locator_get_slot(&arg_locator, i, NULL));
-                        ZEND_ADD_CALL_FLAG(execute_data,
-                                           ZEND_CALL_MAY_HAVE_UNDEF);
-                    }
-
-                    args_initialized = idx + 1;
-                } else {
-                    // This slot was already initialized, need to
-                    // decrement refcount before overwriting
-                    zval_dtor(target);
-                }
-
-                if (idx >= arg_locator.reserved && Z_REFCOUNTED_P(val)) {
-                    // If there are any "extra parameters" that are
-                    // refcounted, then this flag must be set. While we
-                    // cannot add any new extra parameter slots, this flag
-                    // may not have been present because all the values
-                    // were previously not refcounted
-                    ZEND_ADD_CALL_FLAG(execute_data,
-                                       ZEND_CALL_FREE_EXTRA_ARGS);
-                }
-
-                ZVAL_COPY(target, val);
-
-                if (idx < arg_locator.provided &&
-                    Z_TYPE(params[1]) == IS_ARRAY) {
-                    // This index is present in the array provided to begin
-                    // hook, update it in that array as well
-                    Z_TRY_ADDREF_P(val);
-                    zend_hash_index_update(Z_ARR(params[1]), idx, val);
-                }
-            }
-            ZEND_HASH_FOREACH_END();
-
-            arg_locator_store_extended(&arg_locator);
-
-            // Update provided argument count if begin hook added arguments
-            // that were not provided originally
-            if (args_initialized > arg_locator.provided) {
-                ZEND_CALL_NUM_ARGS(execute_data) = args_initialized;
-            }
+    for (zend_llist_element *element = hooks->head; element;
+         element = element->next) {
+        zend_fcall_info fci = empty_fcall_info;
+        zend_fcall_info_cache fcc = empty_fcall_info_cache;
+        if (UNEXPECTED(zend_fcall_info_init((zval *)element->data, 0, &fci,
+                                            &fcc, NULL, NULL) != SUCCESS)) {
+            php_error_docref(NULL, E_WARNING,
+                             "Failed to initialize pre hook callable");
+            continue;
         }
+       	zval ret = {.u1.type_info = IS_UNDEF};
+	    fci.param_count = param_count;
+	    fci.params = params;
+	    fci.named_params = NULL;
+	    fci.retval = &ret;
+
+        if (!is_valid_signature(fci, fcc)) {
+            php_error_docref(NULL, E_CORE_WARNING,
+                             "OpenTelemetry: pre hook invalid signature,"
+                             " class=%s function=%s",
+                             (Z_TYPE_P(&params[2]) == IS_NULL)
+                                 ? "null"
+                                 : Z_STRVAL_P(&params[2]),
+                             Z_STRVAL_P(&params[3]));
+            return;
+        }
+        otel_exception_state save_state;
+        exception_isolation_start(&save_state);
+
+        if (zend_call_function(&fci, &fcc) == SUCCESS) {
+        }
+
+        zend_object *suppressed = exception_isolation_end(&save_state);
+        exception_isolation_handle_exception(suppressed, NULL, NULL,
+                                              "pre hook");
+
+        zval_dtor(&ret);
     }
-
-    zend_object *suppressed = exception_isolation_end(&save_state);
-    exception_isolation_handle_exception(suppressed, &params[2], &params[3],
-                                         "pre hook");
-
-    zval_dtor(&ret);
-
-
     if (UNEXPECTED(ZEND_CALL_INFO(execute_data) & ZEND_CALL_MAY_HAVE_UNDEF)) {
         zend_object *exception = EG(exception);
         EG(exception) = (void *)(uintptr_t)-1;
@@ -727,23 +675,16 @@ static void profiler_begin(zend_execute_data *execute_data, zval *hook) {
         }
         EG(exception) = exception;
     }
-
     for (size_t i = 0; i < param_count; i++) {
         zval_dtor(&params[i]);
     }
-*/
 }
 
 static void profiler_end(zend_execute_data *execute_data, zval *retval,
-                         zval *hook) {
-	php_error_docref(NULL, E_WARNING, "profiler_end is called");
-    if (!hook) {
-		php_error_docref(NULL, E_WARNING, "post hook is null");
+                         zend_llist *hooks) {
+    if (!zend_llist_count(hooks)) {
         return;
     }
-	php_error_docref(NULL, E_WARNING, "profiler_end...");
-
-/*
     zval params[8];
     uint32_t param_count = 8;
 
@@ -753,103 +694,108 @@ static void profiler_end(zend_execute_data *execute_data, zval *retval,
     func_get_exception(&params[3]);
     func_get_declaring_scope(&params[4], execute_data);
     func_get_function_name(&params[5], execute_data);
+    // Assume 'var' points to a zval of type IS_STRING
+    // char *cstr = Z_STRVAL_P(&params[5]);
+    // int cstrlen = Z_STRLEN_P(&params[5]);
+    // php_error_docref(NULL, E_WARNING, "Function %s() called", cstr);
+
     func_get_filename(&params[6], execute_data);
     func_get_lineno(&params[7], execute_data);
 
     for (zend_llist_element *element = hooks->tail; element;
-         element = element->prev) {
-        zend_fcall_info fci = empty_fcall_info;
-        zend_fcall_info_cache fcc = empty_fcall_info_cache;
-        if (UNEXPECTED(zend_fcall_info_init((zval *)element->data, 0, &fci,
-                                            &fcc, NULL, NULL) != SUCCESS)) {
-            php_error_docref(NULL, E_WARNING,
-                             "Failed to initialize post hook callable");
-            continue;
-        }
+             element = element->prev) {
+    zend_fcall_info fci = empty_fcall_info;
+    zend_fcall_info_cache fcc = empty_fcall_info_cache;
+    if (UNEXPECTED(zend_fcall_info_init((zval *)element->data, 0, &fci,
+                                        &fcc, NULL, NULL) != SUCCESS)) {
+        php_error_docref(NULL, E_WARNING, "Failed to initialize post hook callable");
+        continue;
+    }
 
-        zval ret = {.u1.type_info = IS_UNDEF};
-        fci.param_count = param_count;
-        fci.params = params;
-        fci.named_params = NULL;
-        fci.retval = &ret;
+    zval ret = {.u1.type_info = IS_UNDEF};
+    fci.param_count = param_count;
+    fci.params = params;
+    fci.named_params = NULL;
+    fci.retval = &ret;
 
-        if (!is_valid_signature(fci, fcc)) {
-            php_error_docref(NULL, E_CORE_WARNING,
-                             "OpenTelemetry: post hook invalid signature, "
-                             "class=%s function=%s",
-                             (Z_TYPE_P(&params[4]) == IS_NULL)
-                                 ? "null"
-                                 : Z_STRVAL_P(&params[4]),
-                             Z_STRVAL_P(&params[5]));
-            continue;
-        }
+    if (!is_valid_signature(fci, fcc)) {
+        php_error_docref(NULL, E_CORE_WARNING,
+                         "OpenTelemetry: post hook invalid signature, "
+                         "class=%s function=%s",
+                         (Z_TYPE_P(&params[4]) == IS_NULL)
+                             ? "null"
+                             : Z_STRVAL_P(&params[4]),
+                         Z_STRVAL_P(&params[5]));
+        continue;
+    }
+    otel_exception_state save_state;
+    exception_isolation_start(&save_state);
 
-        otel_exception_state save_state;
-        exception_isolation_start(&save_state);
-
-        if (zend_call_function(&fci, &fcc) == SUCCESS) {
-
-            if (!Z_ISUNDEF(ret) &&
-                (fcc.function_handler->op_array.fn_flags &
-                 ZEND_ACC_HAS_RETURN_TYPE) &&
-                !(ZEND_TYPE_PURE_MASK(
-                      fcc.function_handler->common.arg_info[-1].type) &
-                  MAY_BE_VOID)) {
-                if (execute_data->return_value) {
-                    zval_ptr_dtor(execute_data->return_value);
-                    ZVAL_COPY(execute_data->return_value, &ret);
-                    zval_ptr_dtor(&params[2]);
-                    ZVAL_COPY_VALUE(&params[2], &ret);
-                    ZVAL_UNDEF(&ret);
-                }
+    if (zend_call_function(&fci, &fcc) == SUCCESS) {
+        if (!Z_ISUNDEF(ret) &&
+            (fcc.function_handler->op_array.fn_flags &
+             ZEND_ACC_HAS_RETURN_TYPE) &&
+            !(ZEND_TYPE_PURE_MASK(
+                  fcc.function_handler->common.arg_info[-1].type) &
+              MAY_BE_VOID)) {
+            if (execute_data->return_value) {
+                zval_ptr_dtor(execute_data->return_value);
+                ZVAL_COPY(execute_data->return_value, &ret);
+                zval_ptr_dtor(&params[2]);
+                ZVAL_COPY_VALUE(&params[2], &ret);
+                ZVAL_UNDEF(&ret);
             }
         }
+    }
 
-        zend_object *suppressed = exception_isolation_end(&save_state);
-        exception_isolation_handle_exception(suppressed, &params[4], &params[5],
-                                             "post hook");
+    zend_object *suppressed = exception_isolation_end(&save_state);
+    exception_isolation_handle_exception(suppressed, &params[4], &params[5],
+                                         "post hook");
 
-        zval_dtor(&ret);
+    zval_dtor(&ret);
     }
 
     for (size_t i = 0; i < param_count; i++) {
         zval_dtor(&params[i]);
     }
-*/
 }
 
 bool function_level_profiler_begin(char *fn, zend_execute_data *execute_data) {
     zend_string *lc = zend_string_init(fn, strlen(fn), 0);
     function_level_profiler *profiler = zend_hash_find_ptr(OTEL_G(function_level_profiler_lookup), lc);
     zend_string_release(lc);
-    if (profiler && profiler->pre_hook) {
-        php_error_docref(NULL, E_WARNING, "calling profiler_begin");
-    	profiler_begin(execute_data, profiler->pre_hook);
+    if (profiler) {
+    	profiler_begin(execute_data, &profiler->pre_hooks);
         return true;
     }
-    php_error_docref(NULL, E_WARNING, "profiler or pre hook is null");
     return false;
 }
 
-void function_level_profiler_end(char *fn, zend_execute_data *execute_data, zval *retval) {
+bool function_level_profiler_end(char *fn, zend_execute_data *execute_data, zval *retval) {
     zend_string *lc = zend_string_init(fn, strlen(fn), 0);
     function_level_profiler *profiler = zend_hash_find_ptr(OTEL_G(function_level_profiler_lookup), lc);
     zend_string_release(lc);
-    if (profiler && profiler->post_hook) {
-		php_error_docref(NULL, E_WARNING, "calling profiler_end");
-    	profiler_end(execute_data, retval, profiler->post_hook);
+    if (profiler) {
+    	profiler_end(execute_data, retval, &profiler->post_hooks);
+        return true;
     }
-    php_error_docref(NULL, E_WARNING, "profiler or post hook is null");
+    return false;
 }
 
 static void free_function_level_profiler(function_level_profiler *profiler) {
-    efree(profiler);
+    if (profiler) {
+        zend_llist_destroy(&profiler->pre_hooks);
+        zend_llist_destroy(&profiler->post_hooks);
+        efree(profiler);
+    }
 }
 
 static void init_function_level_profiler(function_level_profiler *profiler) {
     if (profiler) {
-        profiler->pre_hook = NULL;
-        profiler->post_hook = NULL;
+        zend_llist_init(&profiler->pre_hooks, sizeof(zval),
+                        (llist_dtor_func_t)zval_ptr_dtor, 0);
+        zend_llist_init(&profiler->post_hooks, sizeof(zval),
+                        (llist_dtor_func_t)zval_ptr_dtor, 0);
     }
 }
 
@@ -860,7 +806,6 @@ static function_level_profiler *create_function_level_profiler() {
 }
 
 bool add_function_level_profiler(char *fn, zval *pre_hook, zval *post_hook) {
-	php_error_docref(NULL, E_WARNING, "add function level profiler...");
     zend_string *lc = zend_string_init(fn, strlen(fn), 0);
     function_level_profiler *profiler = zend_hash_find_ptr(OTEL_G(function_level_profiler_lookup), lc);
     if (!profiler) {
@@ -870,10 +815,12 @@ bool add_function_level_profiler(char *fn, zval *pre_hook, zval *post_hook) {
     zend_string_release(lc);
 
     if (pre_hook) {
-        profiler->pre_hook = pre_hook;
+        zval_add_ref(pre_hook);
+        zend_llist_add_element(&profiler->pre_hooks, pre_hook);
     }
     if (post_hook) {
-        profiler->post_hook = post_hook;
+        zval_add_ref(post_hook);
+        zend_llist_add_element(&profiler->post_hooks, post_hook);
     }
     return true;
 }
