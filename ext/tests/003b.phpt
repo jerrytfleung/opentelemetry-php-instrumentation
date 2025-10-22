@@ -6,9 +6,11 @@ opentelemetry
 opentelemetry.function_level_profiling=On
 --FILE--
 <?php
-// \OpenTelemetry\Instrumentation\hook_zend_execute_ex(fn() => var_dump('PRE ex'), fn() => var_dump('POST ex'));
+\OpenTelemetry\Instrumentation\hook_zend_execute_ex(fn() => var_dump('PRE ex'), fn() => var_dump('POST ex'));
 \OpenTelemetry\Instrumentation\hook_zend_execute_internal(fn() => var_dump('PRE internal'), fn() => var_dump('POST internal'));
 
+var_dump('HELLO');
+var_dump('HELLO');
 var_dump('HELLO');
 
 ?>
