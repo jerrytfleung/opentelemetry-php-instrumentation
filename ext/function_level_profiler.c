@@ -606,10 +606,11 @@ static inline void func_get_exception(zval *zv) {
     }
 }
 
-static void profiler_begin(zend_execute_data *execute_data, zend_llist * hooks) {
+static int profiler_begin(zend_execute_data *execute_data, zend_llist * hooks) {
     if (!zend_llist_count(hooks)) {
-        return;
+        return 0;
     }
+    int hooks_executed = 0;
 
     zval params[7];
     uint32_t param_count = 7;
@@ -645,13 +646,13 @@ static void profiler_begin(zend_execute_data *execute_data, zend_llist * hooks) 
                                  ? "null"
                                  : Z_STRVAL_P(&params[2]),
                              Z_STRVAL_P(&params[3]));
-            return;
+            continue;
         }
         otel_exception_state save_state;
         exception_isolation_start(&save_state);
 
-        if (zend_call_function(&fci, &fcc) == SUCCESS) {
-        }
+        zend_call_function(&fci, &fcc);
+        hooks_executed++;
 
         zend_object *suppressed = exception_isolation_end(&save_state);
         exception_isolation_handle_exception(suppressed, NULL, NULL,
@@ -678,9 +679,10 @@ static void profiler_begin(zend_execute_data *execute_data, zend_llist * hooks) 
     for (size_t i = 0; i < param_count; i++) {
         zval_dtor(&params[i]);
     }
+    return hooks_executed;
 }
 
-static void profiler_end(zend_execute_data *execute_data, zval *retval,
+static void profiler_end(int prehooks_executed, zend_execute_data *execute_data, zval *retval,
                          zend_llist *hooks) {
     if (!zend_llist_count(hooks)) {
         return;
@@ -702,8 +704,13 @@ static void profiler_end(zend_execute_data *execute_data, zval *retval,
     func_get_filename(&params[6], execute_data);
     func_get_lineno(&params[7], execute_data);
 
+    int skip = zend_llist_count(hooks) - prehooks_executed;
     for (zend_llist_element *element = hooks->tail; element;
              element = element->prev) {
+        if (skip > 0) {
+            skip--;
+            continue;
+        }
         zend_fcall_info fci = empty_fcall_info;
         zend_fcall_info_cache fcc = empty_fcall_info_cache;
         if (UNEXPECTED(zend_fcall_info_init((zval *)element->data, 0, &fci,
@@ -746,26 +753,23 @@ static void profiler_end(zend_execute_data *execute_data, zval *retval,
     }
 }
 
-bool function_level_profiler_begin(char *fn, zend_execute_data *execute_data) {
+int function_level_profiler_begin(char *fn, zend_execute_data *execute_data) {
     zend_string *lc = zend_string_init(fn, strlen(fn), 0);
     function_level_profiler *profiler = zend_hash_find_ptr(OTEL_G(function_level_profiler_lookup), lc);
     zend_string_release(lc);
     if (profiler) {
-    	profiler_begin(execute_data, &profiler->pre_hooks);
-        return true;
+    	return profiler_begin(execute_data, &profiler->pre_hooks);
     }
-    return false;
+    return 0;
 }
 
-bool function_level_profiler_end(char *fn, zend_execute_data *execute_data, zval *retval) {
+void function_level_profiler_end(char *fn, int prehook_executed, zend_execute_data *execute_data, zval *retval) {
     zend_string *lc = zend_string_init(fn, strlen(fn), 0);
     function_level_profiler *profiler = zend_hash_find_ptr(OTEL_G(function_level_profiler_lookup), lc);
     zend_string_release(lc);
     if (profiler) {
-    	profiler_end(execute_data, retval, &profiler->post_hooks);
-        return true;
+    	profiler_end(prehook_executed, execute_data, retval, &profiler->post_hooks);
     }
-    return false;
 }
 
 static void free_function_level_profiler(function_level_profiler *profiler) {

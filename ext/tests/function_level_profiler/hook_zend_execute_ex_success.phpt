@@ -4,7 +4,7 @@ Check if hook_zend_execute_ex returns true
 opentelemetry
 --FILE--
 <?php
-$ret = \OpenTelemetry\Instrumentation\hook(null, 'some_function');
+$ret = \OpenTelemetry\Instrumentation\hook_zend_execute_ex();
 
 var_dump($ret);
 ?>
