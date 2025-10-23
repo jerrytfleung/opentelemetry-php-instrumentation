@@ -19,8 +19,8 @@ ZEND_BEGIN_MODULE_GLOBALS(opentelemetry)
     int function_level_profiling; // function level profiling enabled?
     char *pre_handler_function_fqn;
     char *post_handler_function_fqn;
-    int current_execute_ex_data;
-    int current_execute_internal_data;
+    int execute_ex_level;
+    int execute_internal_level;
 ZEND_END_MODULE_GLOBALS(opentelemetry)
 
 ZEND_EXTERN_MODULE_GLOBALS(opentelemetry)

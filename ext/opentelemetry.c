@@ -80,38 +80,40 @@ static void check_conflicts() {
 }
 
 void opentelemetry_execute_ex(zend_execute_data *execute_data) {
-    if (OTEL_G(current_execute_ex_data) == 0) {
-        OTEL_G(current_execute_ex_data) = 1;
-        // php_error_docref(NULL, E_WARNING, "OTEL_G(current_execute_ex_data) == %d (In)", OTEL_G(current_execute_ex_data));
-        int prehooks_executed = function_level_profiler_begin("zend_execute_ex", execute_data);
+    if (OTEL_G(execute_ex_level) == 0) {
+        OTEL_G(execute_ex_level) = 1;
+        // php_error_docref(NULL, E_WARNING, "calling prehook in opentelemetry_execute_ex");
+        // pre hook logic...
+        bool begun = function_level_profiler_begin("zend_execute_ex", execute_data);
+        // php_error_docref(NULL, E_WARNING, "calling execute_ex in opentelemetry_execute_ex");
         execute_ex(execute_data);
-        if (prehooks_executed > 0) {
-            function_level_profiler_end("zend_execute_ex", prehooks_executed, execute_data, NULL);
+        // php_error_docref(NULL, E_WARNING, "calling posthook in opentelemetry_execute_ex");
+        // post hook logic...
+        if (begun) {
+            function_level_profiler_end("zend_execute_ex", execute_data, NULL);
         }
-        OTEL_G(current_execute_ex_data) = 0;
-        // php_error_docref(NULL, E_WARNING, "OTEL_G(current_execute_ex_data) == %d (Out)", OTEL_G(current_execute_ex_data));
+        OTEL_G(execute_ex_level) = 0;
     } else {
-        // php_error_docref(NULL, E_WARNING, "OTEL_G(current_execute_ex_data) == %d (Skip)", OTEL_G(current_execute_ex_data));
         execute_ex(execute_data);
     }
 }
-
 void opentelemetry_execute_internal(zend_execute_data *execute_data, zval *return_value) {
-    if (OTEL_G(current_execute_internal_data) == 0) {
-        OTEL_G(current_execute_internal_data) = 1;
-        // php_error_docref(NULL, E_WARNING, "OTEL_G(current_execute_internal_data) == %d (In)", OTEL_G(current_execute_internal_data));
-        int prehooks_executed = function_level_profiler_begin("zend_execute_internal", execute_data);
+    if (OTEL_G(execute_internal_level) == 0) {
+        OTEL_G(execute_internal_level) = 1;
+        // php_error_docref(NULL, E_WARNING, "calling prehook in opentelemetry_execute_internal");
+        // pre hook logic...
+        bool begun = function_level_profiler_begin("zend_execute_internal", execute_data);
+        // php_error_docref(NULL, E_WARNING, "calling execute_internal in opentelemetry_execute_internal");
         execute_internal(execute_data, return_value);
-        if (prehooks_executed > 0) {
-            function_level_profiler_end("zend_execute_internal", prehooks_executed, execute_data, return_value);
+        // php_error_docref(NULL, E_WARNING, "calling posthook in opentelemetry_execute_internal");
+        // post hook logic...
+        if (begun) {
+            function_level_profiler_end("zend_execute_internal", execute_data, return_value);
         }
-        OTEL_G(current_execute_internal_data) = 0;
-        // php_error_docref(NULL, E_WARNING, "OTEL_G(current_execute_internal_data) == %d (Out)", OTEL_G(current_execute_internal_data));
+        OTEL_G(execute_internal_level) = 0;
     } else {
-        // php_error_docref(NULL, E_WARNING, "OTEL_G(current_execute_internal_data) == %d (Skip)", OTEL_G(current_execute_internal_data));
         execute_internal(execute_data, return_value);
     }
-
 }
 
 
