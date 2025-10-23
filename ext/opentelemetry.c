@@ -98,7 +98,9 @@ void opentelemetry_execute_ex(zend_execute_data *execute_data) {
     }
 }
 void opentelemetry_execute_internal(zend_execute_data *execute_data, zval *return_value) {
-    if (OTEL_G(execute_internal_level) == 0) {
+    if (strstr(execute_data->func->op_array.function_name->val, "hook_zend_execute_internal") != NULL) {
+        execute_internal(execute_data, return_value);
+    } else if (OTEL_G(execute_internal_level) == 0) {
         OTEL_G(execute_internal_level) = 1;
         // php_error_docref(NULL, E_WARNING, "calling prehook in opentelemetry_execute_internal");
         // pre hook logic...
