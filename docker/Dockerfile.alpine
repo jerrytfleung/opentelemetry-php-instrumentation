@@ -35,4 +35,32 @@ RUN echo "$PHP_URL" && curl -fsSL -o php.tar.gz "$PHP_URL" \
   && ./configure ${PHP_CONFIG_OPTS} \
   && make -j $(nproc) \
   && make install
+
+RUN apk add --no-cache \
+    less \
+    protobuf-dev \
+    protobuf \
+    openssl-dev \
+    hyperfine \
+    cmake \
+    git
+
+RUN cd /tmp \
+  && git clone --recurse-submodules -j $(nproc) --depth=1 https://github.com/open-telemetry/opentelemetry-cpp.git \
+  && cd opentelemetry-cpp \
+  && mkdir build \
+  && cd build \
+  && cmake \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE  \
+    -DWITH_ZIPKIN=OFF \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DBUILD_TESTING=OFF \
+    -DWITH_OTLP_GRPC=OFF \
+    -DWITH_OTLP_HTTP=ON \
+    -DWITH_ABSEIL=OFF \
+    -DBUILD_SHARED_LIBS=ON \
+    .. \
+  && cmake --build . -j $(nproc) --target install
+
 WORKDIR /usr/src/myapp
