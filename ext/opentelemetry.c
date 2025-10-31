@@ -12,6 +12,12 @@
 #include "string.h"
 #include "zend_attributes.h"
 #include "zend_closures.h"
+#include "sdk_c_wrapper.h"
+
+static void (*original_zend_execute_ex) (zend_execute_data *execute_data);
+static void (*original_zend_execute_internal) (zend_execute_data *execute_data, zval *return_value);
+void opentelemetry_execute_ex (zend_execute_data *execute_data);
+void opentelemetry_execute_internal(zend_execute_data *execute_data, zval *return_value);
 
 static int check_conflict(HashTable *registry, const char *extension_name) {
     if (!extension_name || !*extension_name) {
@@ -71,6 +77,26 @@ static void check_conflicts() {
     }
 
     OTEL_G(disabled) = conflict_found;
+}
+
+void prehook(zend_execute_data *execute_data) {
+
+}
+
+void posthook(zend_execute_data *execute_data, zval *return_value) {
+
+}
+
+void opentelemetry_execute_ex(zend_execute_data *execute_data) {
+    prehook(execute_data);
+    execute_ex(execute_data);
+    posthook(execute_data, NULL);
+}
+
+void opentelemetry_execute_internal(zend_execute_data *execute_data, zval *return_value) {
+    prehook(execute_data);
+    execute_internal(execute_data, return_value);
+    posthook(execute_data, return_value);
 }
 
 ZEND_DECLARE_MODULE_GLOBALS(opentelemetry)
@@ -147,6 +173,14 @@ PHP_MINIT_FUNCTION(opentelemetry) {
     check_conflicts();
 
     if (!OTEL_G(disabled)) {
+        original_zend_execute_internal = zend_execute_internal;
+        zend_execute_internal = opentelemetry_execute_internal;
+        original_zend_execute_ex = zend_execute_ex;
+        zend_execute_ex = opentelemetry_execute_ex;
+
+        Sdk_Init();
+        Sdk_Work();
+
         opentelemetry_observer_init(INIT_FUNC_ARGS_PASSTHRU);
     }
 
@@ -154,6 +188,10 @@ PHP_MINIT_FUNCTION(opentelemetry) {
 }
 
 PHP_MSHUTDOWN_FUNCTION(opentelemetry) {
+    if (!OTEL_G(disabled)) {
+        zend_execute_ex = original_zend_execute_ex;
+        zend_execute_internal = original_zend_execute_internal;
+    }
     UNREGISTER_INI_ENTRIES();
 
     return SUCCESS;
