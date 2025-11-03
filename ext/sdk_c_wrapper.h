@@ -5,10 +5,15 @@
 extern "C" {
 #endif
 
-void Sdk_Init();
+void InitTracer();
 
-bool Sdk_Work();
+void CleanupTracer();
 
+void PreCodeProfiling(bool userland, char *function_name, char *scope_name, char *filename, char *class_name, int lineno);
+
+// void prehook(zend_execute_data *execute_data);
+
+// void posthook(zend_execute_data *execute_data, zval *return_value);
 
 #ifdef __cplusplus
 }
