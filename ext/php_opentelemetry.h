@@ -9,14 +9,18 @@ ZEND_BEGIN_MODULE_GLOBALS(opentelemetry)
     HashTable *observer_class_lookup;
     HashTable *observer_function_lookup;
     HashTable *observer_aggregates;
+    HashTable *function_level_profiler_lookup;
     int validate_hook_functions;
     char *conflicts;
     int disabled; // module disabled? (eg due to conflicting extension loaded)
     int allow_stack_extension;
     int attr_hooks_enabled; // attribute hooking enabled?
     int display_warnings;
+    int function_level_profiling; // function level profiling enabled?
     char *pre_handler_function_fqn;
     char *post_handler_function_fqn;
+    int execute_ex_level;
+    int execute_internal_level;
 ZEND_END_MODULE_GLOBALS(opentelemetry)
 
 ZEND_EXTERN_MODULE_GLOBALS(opentelemetry)

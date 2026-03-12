@@ -21,3 +21,31 @@ function hook(
     ?\Closure $pre = null,
     ?\Closure $post = null,
 ): bool {}
+
+/**
+ * @param \Closure|null $pre function($class, array $params, ?string $class, ?string $function, ?string $filename, ?int $lineno, ?array $sample_args, ?array $sample_attributes): $params
+ *        You may optionally return modified parameters.
+ * @param \Closure|null $post function($class, array $params, $returnValue, ?Throwable $exception): $returnValue
+ *        You may optionally return modified return value.
+ * @return bool Whether the hook was successfully added
+ *
+ * @see https://github.com/open-telemetry/opentelemetry-php-instrumentation
+ */
+function hook_zend_execute_ex(
+    ?\Closure $pre = null,
+    ?\Closure $post = null,
+): bool {}
+
+/**
+ * @param \Closure|null $pre function($class, array $params, ?string $filename, ?int $lineno, ?array $sample_args, ?array $sample_attributes): $params
+ *        You may optionally return modified parameters.
+ * @param \Closure|null $post function($class, array $params, $returnValue, ?Throwable $exception): $returnValue
+ *        You may optionally return modified return value.
+ * @return bool Whether the hook was successfully added
+ *
+ * @see https://github.com/open-telemetry/opentelemetry-php-instrumentation
+ */
+function hook_zend_execute_internal(
+    ?\Closure $pre = null,
+    ?\Closure $post = null,
+): bool {}
