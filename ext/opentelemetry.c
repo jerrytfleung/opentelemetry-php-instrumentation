@@ -12,6 +12,12 @@
 #include "string.h"
 #include "zend_attributes.h"
 #include "zend_closures.h"
+#include "sdk_c_wrapper.h"
+
+static void (*original_zend_execute_ex) (zend_execute_data *execute_data);
+static void (*original_zend_execute_internal) (zend_execute_data *execute_data, zval *return_value);
+void opentelemetry_execute_ex (zend_execute_data *execute_data);
+void opentelemetry_execute_internal(zend_execute_data *execute_data, zval *return_value);
 
 static int check_conflict(HashTable *registry, const char *extension_name) {
     if (!extension_name || !*extension_name) {
@@ -71,6 +77,51 @@ static void check_conflicts() {
     }
 
     OTEL_G(disabled) = conflict_found;
+}
+
+void prehook(zend_execute_data *execute_data) {
+    if (execute_data) {
+        bool userland = false;
+        char *function_name = NULL;
+        char *scope_name = NULL;
+        char *filename = NULL;
+        char *class_name = NULL;
+        int lineno = -1;
+        if (execute_data->func) {
+            userland = execute_data->func->type == ZEND_USER_FUNCTION;
+            if (execute_data->func->common.function_name) {
+                function_name = execute_data->func->common.function_name->val;
+            }
+            if (execute_data->func->common.scope && execute_data->func->common.scope->name) {
+                scope_name = execute_data->func->common.scope->name->val;
+            }
+            if (execute_data->func->op_array.filename) {
+                filename = execute_data->func->op_array.filename->val;
+            }
+        }
+        if (execute_data->This.value.obj && execute_data->This.value.obj->ce && execute_data->This.value.obj->ce->name) {
+            class_name = execute_data->This.value.obj->ce->name->val;
+        }
+        if (execute_data->opline) {
+            lineno = execute_data->opline->lineno;
+        }
+        PreCodeProfiling(userland, function_name, scope_name, filename, class_name, lineno);
+    }
+}
+
+void posthook(zend_execute_data *execute_data, zval *return_value) {
+}
+
+void opentelemetry_execute_ex(zend_execute_data *execute_data) {
+    prehook(execute_data);
+    execute_ex(execute_data);
+    posthook(execute_data, NULL);
+}
+
+void opentelemetry_execute_internal(zend_execute_data *execute_data, zval *return_value) {
+    prehook(execute_data);
+    execute_internal(execute_data, return_value);
+    posthook(execute_data, return_value);
 }
 
 ZEND_DECLARE_MODULE_GLOBALS(opentelemetry)
@@ -147,6 +198,12 @@ PHP_MINIT_FUNCTION(opentelemetry) {
     check_conflicts();
 
     if (!OTEL_G(disabled)) {
+        InitTracer();
+        original_zend_execute_internal = zend_execute_internal;
+        zend_execute_internal = opentelemetry_execute_internal;
+        original_zend_execute_ex = zend_execute_ex;
+        zend_execute_ex = opentelemetry_execute_ex;
+
         opentelemetry_observer_init(INIT_FUNC_ARGS_PASSTHRU);
     }
 
@@ -154,6 +211,11 @@ PHP_MINIT_FUNCTION(opentelemetry) {
 }
 
 PHP_MSHUTDOWN_FUNCTION(opentelemetry) {
+    if (!OTEL_G(disabled)) {
+        zend_execute_ex = original_zend_execute_ex;
+        zend_execute_internal = original_zend_execute_internal;
+        CleanupTracer();
+    }
     UNREGISTER_INI_ENTRIES();
 
     return SUCCESS;

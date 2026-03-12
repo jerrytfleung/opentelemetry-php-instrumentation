@@ -21,6 +21,18 @@ PHP_ARG_ENABLE([opentelemetry],
 if test "$PHP_OPENTELEMETRY" != "no"; then
   dnl Write more examples of tests here...
 
+  PKG_CHECK_MODULES([OPENTELEMETRY], [opentelemetry_api opentelemetry_common opentelemetry_logs opentelemetry_metrics opentelemetry_resources opentelemetry_trace opentelemetry_version opentelemetry_exporter_ostream])
+  LDFLAGS="$LDFLAGS $OPENTELEMETRY_LIBS"
+
+  PKG_CHECK_MODULES([PROTOBUF], [protobuf])
+  LDFLAGS="$LDFLAGS $PROTOBUF_LIBS"
+
+  PKG_CHECK_MODULES([CURL], [libcurl])
+  LDFLAGS="$LDFLAGS $CURL_LIBS"
+
+  CXXFLAGS="-std=c++17 -g"
+  PHP_REQUIRE_CXX()
+
   dnl Remove this code block if the library does not support pkg-config.
   dnl PKG_CHECK_MODULES([LIBFOO], [foo])
   dnl PHP_EVAL_INCLINE($LIBFOO_CFLAGS)
@@ -90,5 +102,5 @@ if test "$PHP_OPENTELEMETRY" != "no"; then
   dnl In case of no dependencies
   AC_DEFINE(HAVE_OPENTELEMETRY, 1, [ Have opentelemetry support ])
 
-  PHP_NEW_EXTENSION(opentelemetry, opentelemetry.c otel_observer.c, $ext_shared,, "-Wall -Wextra -Werror -Wno-unused-parameter")
+  PHP_NEW_EXTENSION(opentelemetry, opentelemetry.c otel_observer.c sdk_c_wrapper.cpp, $ext_shared,, "-Wall -Wextra -Werror -Wno-unused-parameter")
 fi
